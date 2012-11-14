@@ -155,44 +155,30 @@
     ctx.stroke();
   }
 
-  function Cube(size, fillColor, edgeColor)
+  function Model(patches, points, fillColor, edgeColor)
   {
-    var p000 = new point3D(0,0,0);
-    var p0S0 = new point3D(0,size,0);
-    var pSS0 = new point3D(size,size,0);
-    var pS00 = new point3D(size,0,0);
-
-    var p00S = new point3D(0,0,size);
-    var p0SS = new point3D(0,size,size);
-    var pSSS = new point3D(size,size,size);
-    var pS0S = new point3D(size,0,size);
-
-    var polys = [];
-    polys.push(new poly(p000,p0S0,pSS0,pS00));
-    polys.push(new poly(pS00,pSS0,pSSS,pS0S));
-    polys.push(new poly(pS0S,pSSS,p0SS,p00S));
-    polys.push(new poly(p00S,p0SS,p0S0,p000));
-    polys.push(new poly(p0S0,p0SS,pSSS,pSS0));
-    polys.push(new poly(p00S,p000,pS00,pS0S));
-    this.polys = polys;
-
-    var points = [];
-    points.push(p000);
-    points.push(p0S0);
-    points.push(pSS0);
-    points.push(pS00);
-    points.push(p00S);
-    points.push(p0SS);
-    points.push(pSSS);
-    points.push(pS0S);
-    for(var i = 0; i < polys.length; i++)
-    {
-      points.push(polys[i].normal.point);
-    }
     this.points = points;
-
     this.fillColor = fillColor;
     this.edgeColor = edgeColor;
+
+    var polys = [];
+    for(var i = 0; i < patches.length; i++)
+    {
+      var patch = patches[i];
+      polys.push(new poly(
+	points[patch[0]],points[patch[1]],points[patch[2]],points[patch[3]],
+	points[patch[4]],points[patch[5]],points[patch[6]],points[patch[7]],
+	points[patch[8]],points[patch[9]],points[patch[10]],points[patch[11]],
+	points[patch[12]],points[patch[13]],points[patch[14]],points[patch[15]]
+	));
+    }
+    this.polys = polys;
+
+    // Add normals
+    for(var i = 0; i < polys.length; i++)
+    {
+      this.points.push(polys[i].normal.point);
+    }
   }
 
   function move(o3D, p3D)
@@ -220,6 +206,7 @@
     }
   }
 
+  var req;
   function init(){
     canvas = document.getElementById('3Dcube');
     if (canvas.getContext){
@@ -228,16 +215,18 @@
       ctx.fillStyle = 'rgba(0, 0, 0, 1)';
       ctx.fillRect(0, 0, canvas.width, canvas.height); // clear canvas
 
-      cube = new Cube(100, new color(50,50,200,1), new color(60,60,210,1));
-      move(cube, new point3D(-50,-50,-50));
-      rotate(cube, 'x', 45);
-      rotate(cube, 'y', 45);
-      rotate(cube, 'z', 45);
-      
       centerScreen = new point2D(canvas.width / 2, canvas.height / 2);
-      put(cube, centerScreen);
-
-      timer = setInterval(nextFrame, 1000 / 60);
+      
+      try {
+	req = new XMLHttpRequest();
+      } catch (e) {
+	alert("Unsupported browser:\n"+e);
+      }
+      if (req) {       
+	req.open("GET", 'teapot.data', true);
+	req.onreadystatechange = processReqChange;
+	req.send(null);
+      }
     }
   }
 
@@ -253,6 +242,80 @@
     ctx.fillStyle = 'rgba(50, 50, 200, 1)';
     ctx.strokeStyle = 'rgba(60, 60, 210, 1)';
     put(cube, centerScreen);
+  }
+
+  function processReqChange()
+  {
+    try {
+      if (req.readyState == 4) {
+	if (req.status == 200) {
+	  var data = req.responseText;
+
+	  // Patches
+	  var retval = data.match(/\d+/);
+	  var str = retval[0];
+	  data = data.substr(str.length+1);
+	  var npatches = parseInt(str);
+	  var patches = [];
+
+	  for (var i = 0; i < npatches; i++) 
+	  {
+	    var retval = data.match(/(\d+,?)+/);
+	    var str = retval[0];
+	    data = data.substr(str.length+1);
+
+	    var retval = str.match(/(\d+)/g);
+	    for (var j = 0; j < retval.length; j++) 
+	    {
+	      retval[j] = parseInt(retval[j]) - 1;
+	    }
+	    patches.push(retval);
+	  }
+
+	  // Points
+	  var retval = data.match(/\d+/);
+	  var str = retval[0];
+	  data = data.substr(str.length+1);
+	  var npoints = parseInt(str);
+	  var points = [];
+
+	  for (var i = 0; i < npoints; i++) 
+	  {
+	    var retval = data.match(/([\d.-]+,?)+/);
+	    var str = retval[0];
+	    data = data.substr(str.length+1);
+
+	    var retval = str.match(/([\d.-]+)/g);
+	    var point = new point3D(parseFloat(retval[0])*50, parseFloat(retval[1])*50, parseFloat(retval[2])*50);
+	    points.push(point);
+	  }
+
+	  // Create model
+	  model = new Model(patches, points, new color(50,50,200,1), new color(60,60,210,1));
+  //rotate(model, 'x', 45);
+  //rotate(model, 'y', 45);
+	  put(model, centerScreen);
+
+	  /*
+	  cube = new Cube(100, new color(50,50,200,1), new color(60,60,210,1));
+	  move(cube, new point3D(-50,-50,-50));
+	  
+	  rotate(cube, 'y', 45);
+	  rotate(cube, 'z', 45);
+	  
+	  
+	  put(cube, centerScreen);
+
+	  timer = setInterval(nextFrame, 1000 / 60);
+
+	  */
+	} else {
+	    alert("Cannot get 3D data:\n" + req.statusText);
+	}
+      }
+    }
+    catch (e) {
+    }
   }
 </script>
 

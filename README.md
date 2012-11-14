@@ -1,9 +1,12 @@
-Canvas teapot & 3D cube
-=======================
+Canvas 3D cube & Utah teapot & Suzanne monkey
+========================================
 
-Utah teapot 3D HTML5 canvas realization. 
+3D HTML5 canvas realization based on 2D context.
 
-Also simple example of 3D cube without file with 3D model.
+Wxamples:
+* Creating manually 3D model (see *Cube function* in canvas-3d-cube.html)
+* Reading PLY format (see canvas-ply-reader.html)
+* TODO: Utah teapot
 
 Features:
 * 3D moving object
