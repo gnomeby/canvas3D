@@ -169,9 +169,11 @@
 
   function poly()
   {
+    var normal = arguments[0];
+
     var z = 0;
     var points = [];
-    for(var i = 0; i < arguments.length; i++)
+    for(var i = 1; i < arguments.length; i++)
     {
       points.push(arguments[i]);
       z += arguments[i].z;
@@ -185,11 +187,14 @@
     var v1 = new point3D(points[2].x - points[1].x, points[2].y - points[1].y, points[2].z - points[1].z);
     var v2 = new point3D(points[0].x - points[1].x, points[0].y - points[1].y, points[0].z - points[1].z);
 
-    var normal = new point3D(v1.y*v2.z-v2.y*v1.z, v1.z*v2.x-v2.z*v1.x, v1.x*v2.y-v2.x*v1.y);
-    var normalLen = Math.sqrt(normal.x*normal.x + normal.y*normal.y + normal.z*normal.z);
-    normal.x /= normalLen;
-    normal.y /= normalLen;
-    normal.z /= normalLen;
+    if(normal === null)
+    {
+      var normal = new point3D(v1.y*v2.z-v2.y*v1.z, v1.z*v2.x-v2.z*v1.x, v1.x*v2.y-v2.x*v1.y);
+      var normalLen = Math.sqrt(normal.x*normal.x + normal.y*normal.y + normal.z*normal.z);
+      normal.x /= normalLen;
+      normal.y /= normalLen;
+      normal.z /= normalLen;
+    }
 
     this.normal = normal;
   }
@@ -406,8 +411,8 @@
     }
 
     // Read points
-    points = [];
-    normals = [];
+    var points = [];
+    var normals = [];
     for (var i = 0; i < npoints; i++) 
     {
       var retval = data.match(/([\d.-]+ ?)+/);
@@ -432,8 +437,11 @@
       var str = retval[0];
       data = data.substr(str.length+1);
       
-      var newPolyString = "new poly(";
       var retval = str.match(/(\d+)/g);
+
+      var newPolyString = "new poly(";
+      newPolyString += hasNormal ? "normals["+retval[1]+"]," : "null,";
+
       for (var j = 0; j < retval.length; j++) 
       {
 	retval[j] = parseInt(retval[j]);
@@ -445,10 +453,6 @@
       newPolyString += ");";
       
       polys.push(eval(newPolyString));
-      if(hasNormal)
-      {
-	polys[i].normal = normals[retval[1]];
-      }
     }
 
     // Create model
