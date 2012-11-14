@@ -174,23 +174,34 @@
     polys.push(new poly(p00S,p0SS,p0S0,p000));
     polys.push(new poly(p0S0,p0SS,pSSS,pSS0));
     polys.push(new poly(p00S,p000,pS00,pS0S));
-
     this.polys = polys;
+
+    var points = [];
+    points.push(p000);
+    points.push(p0S0);
+    points.push(pSS0);
+    points.push(pS00);
+    points.push(p00S);
+    points.push(p0SS);
+    points.push(pSSS);
+    points.push(pS0S);
+    for(var i = 0; i < polys.length; i++)
+    {
+      points.push(polys[i].normal.point);
+    }
+    this.points = points;
+
     this.fillColor = fillColor;
     this.edgeColor = edgeColor;
   }
 
   function move(o3D, p3D)
-  {
-    /*
-    for(var i = 0; i < o3D.polys.length; i++)
+  {    
+    for(var i = 0; i < o3D.points.length - o3D.polys.length; i++)
     {
-      var poly = o3D.polys[i];
-      poly.move(p3D);
+      var point = o3D.points[i];
+      point.move(p3D);
     }
-    */
-    o3D.polys[0].move(p3D);
-    o3D.polys[2].move(p3D);
   }
   function put(o3D, center)
   {
@@ -202,19 +213,11 @@
   }
   function rotate(o3D, axis, angle)
   {
-    /*
-    for(var i = 0; i < o3D.polys.length; i++)
+    for(var i = 0; i < o3D.points.length; i++)
     {
-      var poly = o3D.polys[i];
-      poly.rotate(axis, angle);
+      var point = o3D.points[i];
+      point.rotate(axis, angle);
     }
-    */
-    o3D.polys[0].rotate(axis, angle);
-    o3D.polys[1].normal.point.rotate(axis, angle);
-    o3D.polys[2].rotate(axis, angle);
-    o3D.polys[3].normal.point.rotate(axis, angle);
-    o3D.polys[4].normal.point.rotate(axis, angle);
-    o3D.polys[5].normal.point.rotate(axis, angle);
   }
 
   function init(){
@@ -262,8 +265,18 @@
 
 <body onload="init();">
 
-<p>3D cube</p>
-<canvas id="3Dcube" width="360" height="360"></canvas>
+<h1>Utah teapot 3D HTML5 canvas realization on 2D contex.</h1>
+<p>Features:
+  <ul>
+    <li>3D moving object</li>
+    <li>3D rotating</li>
+    <li>Direct illumination</li>
+    <li>Highlighting edges</li>
+    <li>Skip processing for invisible polygons</li>
+    <li>Optimization processing for points</li>
+  </ul>
+</p>
+<canvas id="3Dcube" width="400" height="225"></canvas>
 
 </body>
 

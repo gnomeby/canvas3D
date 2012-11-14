@@ -1,13 +1,17 @@
-Canvas teapot
-=============
+Canvas teapot & 3D cube
+=======================
 
-Utah teapot 3D HTML5 canvas realization.
+Utah teapot 3D HTML5 canvas realization. 
+
+Also simple example of 3D cube without file with 3D model.
 
 Features:
 * 3D moving object
 * 3D rotating
 * Direct illumination
 * Highlighting edges
+* Skip processing for invisible polygons
+* Optimization processing for points
 
 
 #### Requirements:
