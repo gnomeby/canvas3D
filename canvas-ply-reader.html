@@ -99,16 +99,6 @@
     return this.lightnessMap[lightnessMapIndex] = new color(Math.round(r*255), Math.round(g*255), Math.round(b*255), this.a);
   }
 
-  function point2D(x, y)
-  {
-    this.x = x;
-    this.y = y;
-  }
-  point2D.prototype.move = function(p2D)
-  {
-    this.x += p2D.x;
-    this.y += p2D.y;
-  }
 
   function point3D(x, y, z)
   {
@@ -167,21 +157,16 @@
   }
 
 
-  function poly()
+  function poly()	// Dynamic amount of parameters
   {
     var normal = arguments[0];
 
-    var z = 0;
     var points = [];
     for(var i = 1; i < arguments.length; i++)
     {
       points.push(arguments[i]);
-      z += arguments[i].z;
     }
-    z /= arguments.length;
-
     this.points = points;
-    this.z = z;
 
     // Calculating normal
     var v1 = new point3D(points[2].x - points[1].x, points[2].y - points[1].y, points[2].z - points[1].z);
@@ -197,6 +182,7 @@
     }
 
     this.normal = normal;
+    this.recalculateDistanceToScreen();
   }
   poly.prototype.move = function(p3D)
   {
@@ -205,7 +191,7 @@
       var point = this.points[i];
       point.move(p3D);
     }
-    this.recalculateZ();
+    this.recalculateDistanceToScreen();
   }
   poly.prototype.rotate = function(axis, angle)
   {
@@ -216,7 +202,7 @@
     }
     
     this.normal.rotate(axis, angle);
-    this.recalculateZ();
+    this.recalculateDistanceToScreen();
   }
   poly.prototype.put = function(center, fillColor, edgeColor)
   {
@@ -253,16 +239,15 @@
     }
     ctx.stroke();
   }
-  poly.prototype.recalculateZ = function()
+  poly.prototype.recalculateDistanceToScreen = function()
   {
-    var z;
+    var zmax = -Infinity;
     for(var i = 0; i < this.points.length; i++)
     {
-      z += this.points[i].z;
+      zmax = Math.max(zmax, this.points[i].z);
     }
-    z /= this.points.length;
 
-    this.z = z;
+    this.distanceToScreen = zmax;
   }
 
   function Model(polys, points, fillColor, edgeColor)
@@ -278,22 +263,26 @@
       this.points.push(polys[i].normal);
     }
   }
-
-  function move(o3D, p3D)
+  Model.prototype.move = function(p3D)
   {    
-    for(var i = 0; i < o3D.points.length - o3D.polys.length; i++)
+    for(var i = 0; i < this.points.length - this.polys.length; i++)
     {
-      var point = o3D.points[i];
+      var point = this.points[i];
       point.move(p3D);
     }
+    for(var i = 0; i < this.polys.length; i++)
+    {
+      var poly = this.polys[i];
+      poly.recalculateDistanceToScreen();
+    }
   }
-  function put(o3D, center)
+  Model.prototype.put = function (center)
   {
     var zSorting = [];
-    for(var i = 0; i < o3D.polys.length; i++)
+    for(var i = 0; i < this.polys.length; i++)
     {
-      var poly = o3D.polys[i];
-      zSorting.push(poly.z);
+      var poly = this.polys[i];
+      zSorting.push(poly.distanceToScreen);
     }
     zSorting.sort();
     var lastZ;
@@ -303,21 +292,26 @@
 	continue;
       lastZ = zSorting[i];
 
-      for(var j = 0; j < o3D.polys.length; j++)
+      for(var j = 0; j < this.polys.length; j++)
       {
-	var poly = o3D.polys[j];
-	if(poly.z != zSorting[i])
+	var poly = this.polys[j];
+	if(poly.distanceToScreen != zSorting[i])
 	  continue;
-	poly.put(center, o3D.fillColor, o3D.edgeColor);
+	poly.put(center, this.fillColor, this.edgeColor);
       }
     }
   }
-  function rotate(o3D, axis, angle)
+  Model.prototype.rotate = function(axis, angle)
   {
-    for(var i = 0; i < o3D.points.length; i++)
+    for(var i = 0; i < this.points.length; i++)
     {
-      var point = o3D.points[i];
+      var point = this.points[i];
       point.rotate(axis, angle);
+    }
+    for(var i = 0; i < this.polys.length; i++)
+    {
+      var poly = this.polys[i];
+      poly.recalculateDistanceToScreen();
     }
   }
 
@@ -326,11 +320,11 @@
     ctx.fillStyle = 'rgba(0, 0, 0, 1)';  
     ctx.fillRect(0, 0, canvas.width, canvas.height);  // clear canvas
 
-    rotate(model, 'y', 0.6);
+    model.rotate('y', 0.6);
 
     ctx.fillStyle = 'rgba(50, 50, 200, 1)';
     ctx.strokeStyle = 'rgba(60, 60, 210, 1)';
-    put(model, centerScreen);
+    model.put(centerScreen);
 
     // FPS calculation
     if(!fpslastUpdate) 
@@ -340,13 +334,13 @@
     else
     {
       var now = Date.now();
-      fps.unshift(1000 / (now - fpslastUpdate));
+      fps.push(1000 / (now - fpslastUpdate));
       fpslastUpdate = now;
     }
     if(fps.length >= fpsFilter)
     {
       var fpsValue = 0.0;
-      for(var i = 0; i < fpsFilter; i++)
+      for(var i = fps.length - fpsFilter; i < fps.length; i++)
 	fpsValue += fps[i];
 
       ctx.fillStyle = "white";
@@ -354,7 +348,7 @@
     }
     if(fps.length >= fpsFilter * 8)
     {
-      fps = fps.slice(0, fpsFilter);
+      fps = fps.slice(fps.length - fpsFilter);
     }
   }
 
@@ -363,15 +357,7 @@
     try {
       if (req.readyState == 4) {
 	if (req.status == 200) {
-	  model = ply_reader(req.responseText);
-	  
-	  var divinfo = document.getElementById('fileinfo');
-	  divinfo.innerHTML = "File: "+PLYFile+", polygons: "+model.polys.length+", points: "+model.points.length;
-	  //move(model, new point3D(-50,-50,-50));
-	  rotate(model, 'y', 180);
-
-	  put(model, centerScreen);
-
+	  initAfterGettingModel(req.responseText)
 	} else {
 	    alert("Cannot get 3D data:\n" + req.statusText);
 	}
@@ -466,7 +452,8 @@
   var fpsWanted = 24;
   var fps = [], fpslastUpdate;
   var fpsFilter = fpsWanted*2;
-  function init(){
+  function init()
+  {
     canvas = document.getElementById('canvas');
     if (canvas.getContext){
       ctx = canvas.getContext('2d');
@@ -474,18 +461,60 @@
       ctx.fillStyle = 'rgba(0, 0, 0, 1)';
       ctx.fillRect(0, 0, canvas.width, canvas.height); // clear canvas
 
-      centerScreen = new point2D(canvas.width / 2, canvas.height / 2);
+      centerScreen = new point3D(canvas.width / 2, canvas.height / 2, 0);
       
       try {
 	req = new XMLHttpRequest();
       } catch (e) {
 	alert("Unsupported browser:\n"+e);
       }
-      if (req) {       
+      if (req) {
+	// Try to get model
 	req.open("GET", PLYFile, true);
 	req.onreadystatechange = processReqChange;
 	req.send(null);
       }
+    }
+  }
+
+  function initAfterGettingModel(data)
+  {
+    model = ply_reader(data);
+    
+    var divinfo = document.getElementById('fileinfo');
+    divinfo.innerHTML = "File: <a href='"+PLYFile+"'>"+PLYFile+"</a>, polygons: "+model.polys.length+", points: "+model.points.length;
+    model.rotate('y', 211);
+
+    model.put(centerScreen);
+  }
+
+  function startRotating()
+  {
+    for each(var el in document.getElementsByName('fps'))
+      if(el.checked == true)
+	fpsWanted = el.value;
+    document.getElementById('startButton').disabled = "disabled";
+    document.getElementById('stopButton').disabled = "";
+    if(typeof timer != "undefined")
+      return;
+    timer = setInterval(nextFrame, 1000 / fpsWanted);
+  }
+  function stopRotating()
+  {
+    document.getElementById('startButton').disabled = "";
+    document.getElementById('stopButton').disabled = "disabled";
+    if(!timer)
+      return;
+    clearInterval(timer);
+    timer = undefined;
+    fps = [];
+  }
+  function changeFPS(input)
+  {
+    if(typeof timer != "undefined")
+    {
+      stopRotating();
+      startRotating();
     }
   }
 </script>
@@ -502,8 +531,7 @@
 <h1>Suzanne monkey 3D HTML5 canvas realization on 2D contex</h1>
 <p>Features:
   <ul>
-    <li>3D moving object</li>
-    <li>3D rotating</li>
+    <li>3D operations: rotating, moving object center</li>
     <li>Direct illumination</li>
     <li>Highlighting edges</li>
     <li>Skip processing for invisible polygons</li>
@@ -515,7 +543,15 @@
 <br>
 <div id="fileinfo"></div>
 <br>
-<button onclick="timer = setInterval(nextFrame, 1000 / fpsWanted);">Start Y rotating</button> <button onclick="if(timer) clearInterval(timer);">Stop Y rotating</button>
+Max allowed:
+<input type="radio" name="fps" onclick="changeFPS(this)" value="24" checked="checked"/>24 fps
+<input type="radio" name="fps" onclick="changeFPS(this)" value="48"/>48 fps
+<input type="radio" name="fps" onclick="changeFPS(this)" value="60"/>60 fps 
+<input type="radio" name="fps" onclick="changeFPS(this)" value="72"/>72 fps 
+<input type="radio" name="fps" onclick="changeFPS(this)" value="100"/>100 fps
+<input type="radio" name="fps" onclick="changeFPS(this)" value="120"/>120 fps 
+<br>
+<button id="startButton" onclick="startRotating()">Start Y rotating</button> <button id="stopButton" onclick="stopRotating()" disabled="disabled">Stop Y rotating</button>
 </body>
 
 </html>
