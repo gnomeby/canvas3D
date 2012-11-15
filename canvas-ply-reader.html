@@ -118,9 +118,8 @@
     this.y = p3D.y;
     this.z = p3D.z;
   }
-  point3D.prototype.rotate = function(axis, angleGr)
+  point3D.prototype.rotate = function(axis, angleRad)
   {
-    angleRad = angleGr * Math.PI / 180;
     switch (axis)
     {
       case "x":
@@ -182,6 +181,7 @@
     }
 
     this.normal = normal;
+    this.hidden = Math.acos(this.normal.z) >= Math.PI / 2;
     this.recalculateDistanceToScreen();
   }
   poly.prototype.move = function(p3D)
@@ -193,7 +193,7 @@
     }
     this.recalculateDistanceToScreen();
   }
-  poly.prototype.rotate = function(axis, angle)
+  poly.prototype.rotate = function(axis, angleRad)
   {
     for(var i = 0; i < this.points.length; i++)
     {
@@ -201,16 +201,17 @@
       point.rotate(axis, angle);
     }
     
-    this.normal.rotate(axis, angle);
+    this.normal.rotate(axis, angleRad);
+    this.hidden = Math.acos(this.normal.z) >= Math.PI / 2;
     this.recalculateDistanceToScreen();
   }
   poly.prototype.put = function(center, fillColor, edgeColor)
   {
-    // Calulate visibility
-    var normalAngleRad = Math.acos(this.normal.z);
-    if(normalAngleRad / Math.PI * 180 >= 90)
+    // Check visibility
+    if(this.hidden)
       return;
 
+    var normalAngleRad = Math.acos(this.normal.z);
     var lightIntensity = 1 - 2 * (normalAngleRad / Math.PI);	// Convert RAD -> GRAD
     var newColor = fillColor.lightness(lightIntensity);
 
@@ -260,12 +261,6 @@
     this.points = points;
     this.fillColor = fillColor;
     this.edgeColor = edgeColor;
-
-    // Add normals
-    for(var i = 0; i < polys.length; i++)
-    {
-      this.points.push(polys[i].normal);
-    }
   }
   Model.prototype.move = function(p3D)
   {    
@@ -286,6 +281,8 @@
     for(var i = 0; i < this.polys.length; i++)
     {
       var poly = this.polys[i];
+      if(poly.hidden)
+	continue;
       zSorting.push(poly.distanceToScreen);
     }
     zSorting.sort();
@@ -299,23 +296,24 @@
       for(var j = 0; j < this.polys.length; j++)
       {
 	var poly = this.polys[j];
+	if(poly.hidden)
+	  continue;
 	if(poly.distanceToScreen != zSorting[i])
 	  continue;
 	poly.put(center, this.fillColor, this.edgeColor);
       }
     }
   }
-  Model.prototype.rotate = function(axis, angle)
+  Model.prototype.rotate = function(axis, angleRad)
   {
     for(var i = 0; i < this.points.length; i++)
     {
-      var point = this.points[i];
-      point.rotate(axis, angle);
+      this.points[i].rotate(axis, angleRad);
     }
     for(var i = 0; i < this.polys.length; i++)
     {
-      var poly = this.polys[i];
-      poly.recalculateDistanceToScreen();
+      this.polys[i].recalculateDistanceToScreen();
+      this.polys[i].hidden = Math.acos(this.polys[i].normal.z) >= Math.PI / 2;
     }
   }
 
@@ -324,7 +322,7 @@
     ctx.fillStyle = 'rgba(0, 0, 0, 1)';  
     ctx.fillRect(0, 0, canvas.width, canvas.height);  // clear canvas
 
-    model.rotate('y', 0.6);
+    model.rotate('y', 0.6 * Math.PI / 180);
 
     ctx.fillStyle = 'rgba(50, 50, 200, 1)';
     ctx.strokeStyle = 'rgba(60, 60, 210, 1)';
@@ -403,7 +401,7 @@
     // Read points
     var minPoint = new point3D(Infinity, Infinity, Infinity);
     var maxPoint = new point3D(-Infinity, -Infinity, -Infinity);
-    var points = [];
+    var points = [], uniquePointsKeys = [], uniquePoints = [];
     var normals = [];
     for (var i = 0; i < npoints; i++) 
     {
@@ -412,7 +410,18 @@
       data = data.substr(str.length+1);
 
       var retval = str.match(/([\d.-]+)/g);
-      var point = new point3D(parseFloat(retval[0])*scaleFactor, parseFloat(retval[1])*scaleFactor, parseFloat(retval[2])*scaleFactor);
+      var uniqueKey = ""+retval[0]+" "+retval[1]+" "+retval[2];
+      var index = uniquePointsKeys.indexOf(uniqueKey);
+      if(index == -1)
+      {
+	var point = new point3D(parseFloat(retval[0])*scaleFactor, parseFloat(retval[1])*scaleFactor, parseFloat(retval[2])*scaleFactor);
+	uniquePointsKeys.push(uniqueKey);
+	uniquePoints.push(point);
+      }
+      else
+      {
+	var point = uniquePoints[index];
+      }
       points.push(point);
 
       minPoint.x = Math.min(minPoint.x, point.x);minPoint.y = Math.min(minPoint.y, point.y);minPoint.z = Math.min(minPoint.z, point.z);
@@ -447,12 +456,27 @@
 	  newPolyString += "points["+retval[j]+"]";
       }
       newPolyString += ");";
-      console.log(newPolyString);
-      polys.push(eval(newPolyString));
+      var polygon = eval(newPolyString);
+      polys.push(polygon);
+
+      var uniqueKey = ""+polygon.normal.x+" "+polygon.normal.y+" "+polygon.normal.z;
+      var index = uniquePointsKeys.indexOf(uniqueKey);
+      if(index == -1)
+      {
+	uniquePointsKeys.push(uniqueKey);
+	uniquePoints.push(polygon.normal);
+      }
+      else
+      {
+	polygon.normal = uniquePoints[index];
+      }
     }
 
+    var divinfo = document.getElementById('fileinfo');
+    divinfo.innerHTML += ", polygons: "+npolys+", points: "+npoints;
+
     // Create model
-    model = new Model(polys, points, new color(220,220,30,1), null);
+    model = new Model(polys, uniquePoints, new color(220,220,30,1), null);
     // Center model
     model.move(new point3D(-(maxPoint.x + minPoint.x)/2, -(maxPoint.y + minPoint.y)/2, -(maxPoint.z + minPoint.z)/2));
 
@@ -466,10 +490,15 @@
   var fpsFilter = fpsWanted*2;
   function init()
   {
+    document.getElementById('startButton').disabled = false;
+
     // Redefine model file
     var retval = document.location.search.match(/file=([\w\.]+)/);
     if(retval)
       PLYFile = retval[1];
+
+    var divinfo = document.getElementById('fileinfo');
+    divinfo.innerHTML = "File: <a href='"+PLYFile+"'>"+PLYFile+"</a>";
 
     canvas = document.getElementById('canvas');
     if (canvas.getContext){
@@ -499,11 +528,11 @@
     model = ply_reader(data);
     
     var divinfo = document.getElementById('fileinfo');
-    divinfo.innerHTML = "File: <a href='"+PLYFile+"'>"+PLYFile+"</a>, polygons: "+model.polys.length+", points: "+model.points.length;
-      if(PLYFile == 'monkey.ply')
-model.rotate('y', 211);
+    divinfo.innerHTML += ", unique points+normals: "+model.points.length;
+    if(PLYFile == 'monkey.ply')
+      model.rotate('y', 211 * Math.PI / 180);
     else
-    model.rotate('x', -90);
+      model.rotate('x', -90 * Math.PI / 180);
 
     model.put(centerScreen);
   }
@@ -513,16 +542,16 @@ model.rotate('y', 211);
     for each(var el in document.getElementsByName('fps'))
       if(el.checked == true)
 	fpsWanted = el.value;
-    document.getElementById('startButton').disabled = "disabled";
-    document.getElementById('stopButton').disabled = "";
+    document.getElementById('startButton').disabled = true;
+    document.getElementById('stopButton').disabled = false;
     if(typeof timer != "undefined")
       return;
     timer = setInterval(nextFrame, 1000 / fpsWanted);
   }
   function stopRotating()
   {
-    document.getElementById('startButton').disabled = "";
-    document.getElementById('stopButton').disabled = "disabled";
+    document.getElementById('startButton').disabled = false;
+    document.getElementById('stopButton').disabled = true;
     if(!timer)
       return;
     clearInterval(timer);
@@ -555,7 +584,12 @@ model.rotate('y', 211);
     <li>Direct illumination</li>
     <li>Highlighting edges</li>
     <li>Painter's algorithm for sorting polygons</li>
-    <li>Optimizations: Skip processing of invisible polygons, skip processing of duplicated points, normals</li>
+    <li>Optimizations: 
+      <ul>
+	<li>Skip outputting of invisible polygons</li>
+	<li>Skip processing of duplicated points, normals</li>
+      </ul>
+      </li>
   </ul>
 </p>
 <canvas id="canvas" width="400" height="225"></canvas>
@@ -563,6 +597,7 @@ model.rotate('y', 211);
 <div id="fileinfo"></div>
 <br>
 Max allowed:
+<input type="radio" name="fps" onclick="changeFPS(this)" value="12"/>12 fps
 <input type="radio" name="fps" onclick="changeFPS(this)" value="24" checked="checked"/>24 fps
 <input type="radio" name="fps" onclick="changeFPS(this)" value="48"/>48 fps
 <input type="radio" name="fps" onclick="changeFPS(this)" value="60"/>60 fps 
