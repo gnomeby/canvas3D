@@ -1,33 +1,26 @@
-Canvas 3D cube & Utah teapot & Suzanne monkey
-========================================
+PLY 3D model viewer based on HTML5 canvas
+=========================================
 
 3D HTML5 canvas realization based on 2D context.
 
-Wxamples:
+Examples:
 * Creating manually 3D model (see *Cube function* in canvas-3d-cube.html)
 * Reading PLY format (see canvas-ply-reader.html)
-* TODO: Utah teapot
+* Utah teapot (see canvas-ply-reader.html?file=teapot.ply)
 
 Features:
-* 3D moving object
-* 3D rotating
+* 3D operations: rotating, moving object center
 * Direct illumination
 * Highlighting edges
-* Skip processing for invisible polygons
-* Optimization processing for points
+* Painter''s algorithm for sorting polygons
+* Optimizations: Skip processing of invisible polygons, skip processing of duplicated points, normals
 
 
 #### Requirements:
-Internet Explorer 9
-or
-Firefox 2.0
-or
-Safari 3.1
-or
-Opera 9.0
-or
-Safari (Mobile) 3.2
-or
-Opera (Mobile) 10.0
-or
-Android Browser 2.1
+* Internet Explorer 9
+* Firefox 2.0
+* Safari 3.1
+* Opera 9.0
+* Safari (Mobile) 3.2
+* Opera (Mobile) 10.0
+* Android Browser 2.1
