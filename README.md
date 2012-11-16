@@ -4,9 +4,9 @@ PLY 3D model viewer based on HTML5 canvas
 3D HTML5 canvas realization based on 2D context.
 
 Examples:
-* Creating manually 3D model (see *Cube function* in canvas-3d-cube.html)
-* Suzanne monkey (http://gnomeby.github.com/canvas3D/canvas-ply-reader.html?file=monkey.ply "see canvas-ply-reader.html?file=monkey.ply")
-* Utah teapot (http://gnomeby.github.com/canvas3D/canvas-ply-reader.html?file=teapot.ply "see canvas-ply-reader.html?file=teapot.ply")
+* [Cube](http://gnomeby.github.com/canvas3D/canvas-3d-cube.html) (see **Cube function** in source code)
+* [Suzanne monkey](http://gnomeby.github.com/canvas3D/canvas-ply-reader.html?file=monkey.ply)
+* [Utah teapot](http://gnomeby.github.com/canvas3D/canvas-ply-reader.html?file=teapot.ply)
 
 Features:
 * 3D operations: rotating, moving object center
@@ -24,3 +24,5 @@ Features:
 * Safari (Mobile) 3.2
 * Opera (Mobile) 10.0
 * Android Browser 2.1
+
+**Warning!** canvas-ply-reader.html won''t work from disk because it uses AJAX to load **.ply** model file.
