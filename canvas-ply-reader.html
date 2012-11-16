@@ -1,0 +1,611 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<title>PLY 3D model viewer based on HTML5 canvas</title>
+
+<script type="text/javascript">
+  function color(r, g, b, a)
+  {
+    this.r = r;
+    this.g = g;
+    this.b = b;
+    this.a = a;
+
+    this.lightnessMap = [];
+  }
+  color.prototype.lightness = function(lightnessK)
+  {
+    var min = Math.min(this.r, this.g, this.b);
+    var max = Math.max(this.r, this.g, this.b);
+    
+    var lightnessMapIndex = Math.round(lightnessK * 255);
+    if(this.lightnessMap[lightnessMapIndex])
+      return this.lightnessMap[lightnessMapIndex];
+
+    // Simple processing gray colors
+    if(min == max)
+    {
+      return this.lightnessMap[lightnessMapIndex] = new color(this.r * lightnessK, this.g * lightnessK, this.b * lightnessK, this.a);
+    }
+
+    // Convert to HSL
+    var H;
+    var S;
+    var L = (min + max) / 2 / 255;
+    
+    if(max == this.r && this.g >= this.b)
+      H = 60 * (this.g - this.b) / (max - min) + 0;
+    else if(max == this.r)
+      H = 60 * (this.g - this.b) / (max - min) + 360;
+    else if(max == this.g)
+      H = 60 * (this.b - this.r) / (max - min) + 120;
+    else if(max == this.b)
+      H = 60 * (this.r - this.g) / (max - min) + 240;
+    H = H % 360;
+
+    if(L == 0 || max == min)
+      S = 0;
+    else if(L <= 0.5)
+      S = (max - min) / (2 * L) / 255;
+    else if(L < 1)
+      S = (max - min) / (2 - 2*L) / 255;
+    else if(L == 1)
+      S = 1;
+
+    // Apply lightness
+    L = L * lightnessK;
+
+    // Convert to RGB
+    if(L <= 0.5)
+      var Q = L * (1 + S);
+    else
+      var Q = L  + S - (L * S);
+
+    var P = 2 * L - Q;
+    var Hk = H / 360;
+
+    var Tr = Hk + 1/3; if(Tr < 0) Tr = Tr + 1;
+    var Tg = Hk;
+    var Tb = Hk - 1/3; if(Tr > 1) Tr = Tr - 1;
+
+    if(Tr < 1/6)
+      var r = P + ((Q - P) * 6 * Tr);
+    else if(Tr < 1/2)
+      var r = Q;
+    else if(Tr < 2/3)
+      var r = P + ((Q - P) * 6 * (2/3 - Tr));
+    else
+      var r = P;
+
+    if(Tg < 1/6)
+      var g = P + ((Q - P) * 6 * Tg);
+    else if(Tg < 1/2)
+      var g = Q;
+    else if(Tg < 2/3)
+      var g = P + ((Q - P) * 6 * (2/3 - Tg));
+    else
+      var g = P;
+
+    if(Tb < 1/6)
+      var b = P + ((Q - P) * 6 * Tb);
+    else if(Tb < 1/2)
+      var b = Q;
+    else if(Tb < 2/3)
+      var b = P + ((Q - P) * 6 * (2/3 - Tb));
+    else
+      var b = P;
+
+    return this.lightnessMap[lightnessMapIndex] = new color(Math.round(r*255), Math.round(g*255), Math.round(b*255), this.a);
+  }
+
+
+  function point3D(x, y, z)
+  {
+    this.x = x;
+    this.y = y;
+    this.z = z;
+  }
+  point3D.prototype.move = function(p3D)
+  {
+    this.x += p3D.x;
+    this.y += p3D.y;
+    this.z += p3D.z;
+  }
+  point3D.prototype.swap = function(p3D)
+  {
+    this.x = p3D.x;
+    this.y = p3D.y;
+    this.z = p3D.z;
+  }
+  point3D.prototype.rotate = function(axis, angleRad)
+  {
+    switch (axis)
+    {
+      case "x":
+      {
+	var tempPoint = new point3D(
+	  this.x,
+	  this.y * Math.cos(angleRad) - this.z * Math.sin(angleRad),
+	  this.y * Math.sin(angleRad) + this.z * Math.cos(angleRad)
+	  );
+	this.swap(tempPoint);
+	break;
+      } 
+      case "y":
+      {
+	var tempPoint = new point3D(
+	  this.x * Math.cos(angleRad) + this.z * Math.sin(angleRad),
+	  this.y,
+	 -this.x * Math.sin(angleRad) + this.z * Math.cos(angleRad)
+	  );
+	this.swap(tempPoint);
+	break;
+      } 
+      case "z":
+      {
+	var tempPoint = new point3D(
+	  this.x * Math.cos(angleRad) - this.y * Math.sin(angleRad),
+	  this.x * Math.sin(angleRad) + this.y * Math.cos(angleRad),
+	  this.z
+	  );
+	this.swap(tempPoint);
+	break;
+      } 
+    }
+  }
+
+
+  function poly()	// Dynamic amount of parameters
+  {
+    var normal = arguments[0];
+
+    var points = [];
+    for(var i = 1; i < arguments.length; i++)
+    {
+      points.push(arguments[i]);
+    }
+    this.points = points;
+
+    // Calculating normal
+    var v1 = new point3D(points[2].x - points[1].x, points[2].y - points[1].y, points[2].z - points[1].z);
+    var v2 = new point3D(points[0].x - points[1].x, points[0].y - points[1].y, points[0].z - points[1].z);
+
+    if(normal === null)
+    {
+      var normal = new point3D(v1.y*v2.z-v2.y*v1.z, v1.z*v2.x-v2.z*v1.x, v1.x*v2.y-v2.x*v1.y);
+      var normalLen = Math.sqrt(normal.x*normal.x + normal.y*normal.y + normal.z*normal.z);
+      normal.x /= normalLen;
+      normal.y /= normalLen;
+      normal.z /= normalLen;
+    }
+
+    this.normal = normal;
+    this.hidden = Math.acos(this.normal.z) >= Math.PI / 2;
+    this.recalculateDistanceToScreen();
+  }
+  poly.prototype.move = function(p3D)
+  {
+    for(var i = 0; i < this.points.length; i++)
+    {
+      var point = this.points[i];
+      point.move(p3D);
+    }
+    this.recalculateDistanceToScreen();
+  }
+  poly.prototype.rotate = function(axis, angleRad)
+  {
+    for(var i = 0; i < this.points.length; i++)
+    {
+      var point = this.points[i];
+      point.rotate(axis, angle);
+    }
+    
+    this.normal.rotate(axis, angleRad);
+    this.hidden = Math.acos(this.normal.z) >= Math.PI / 2;
+    this.recalculateDistanceToScreen();
+  }
+  poly.prototype.put = function(center, fillColor, edgeColor)
+  {
+    // Check visibility
+    if(this.hidden)
+      return;
+
+    var normalAngleRad = Math.acos(this.normal.z);
+    var lightIntensity = 1 - 2 * (normalAngleRad / Math.PI);	// Convert RAD -> GRAD
+    var newColor = fillColor.lightness(lightIntensity);
+
+    ctx.fillStyle = 'rgba('+newColor.r+','+newColor.g+','+newColor.b+','+newColor.a+')';
+    ctx.beginPath();
+    for(var i = 0; i < this.points.length; i++)
+    {
+      var point = this.points[i];
+      if(i)
+	ctx.lineTo(center.x + parseInt(point.x), center.y - parseInt(point.y));
+      else
+	ctx.moveTo(center.x + parseInt(point.x), center.y - parseInt(point.y));
+    }
+    ctx.fill();
+
+    // Paint edges to fix problem with dark liner between polygons
+    if(!edgeColor)
+      edgeColor = fillColor;
+
+    ctx.lineWidth = 1;
+    var newColor = edgeColor.lightness(lightIntensity);
+    ctx.strokeStyle = 'rgba('+newColor.r+','+newColor.g+','+newColor.b+','+newColor.a+')';
+    ctx.beginPath();
+    var point = this.points[this.points.length-1];
+    ctx.moveTo(center.x + parseInt(point.x), center.y - parseInt(point.y));
+    for(var i = 0; i < this.points.length; i++)
+    {
+      var point = this.points[i];
+      ctx.lineTo(center.x + parseInt(point.x), center.y - parseInt(point.y));
+    }
+    ctx.stroke();
+  }
+  poly.prototype.recalculateDistanceToScreen = function()
+  {
+    var distance = 0.0;
+    for(var i = 0; i < this.points.length; i++)
+    {
+      distance += this.points[i].z;
+    }
+
+    this.distanceToScreen = distance / this.points.length;
+  }
+
+  function Model(polys, points, fillColor, edgeColor)
+  {
+    this.polys = polys;
+    this.points = points;
+    this.fillColor = fillColor;
+    this.edgeColor = edgeColor;
+  }
+  Model.prototype.move = function(p3D)
+  {    
+    for(var i = 0; i < this.points.length - this.polys.length; i++)
+    {
+      var point = this.points[i];
+      point.move(p3D);
+    }
+    for(var i = 0; i < this.polys.length; i++)
+    {
+      var poly = this.polys[i];
+      poly.recalculateDistanceToScreen();
+    }
+  }
+  Model.prototype.put = function (center)
+  {
+    var zSorting = [];
+    for(var i = 0; i < this.polys.length; i++)
+    {
+      var poly = this.polys[i];
+      if(poly.hidden)
+	continue;
+      zSorting.push(poly.distanceToScreen);
+    }
+    zSorting.sort();
+    var lastZ;
+    for(var i = 0; i < zSorting.length; i++)
+    {
+      if(lastZ == zSorting[i])
+	continue;
+      lastZ = zSorting[i];
+
+      for(var j = 0; j < this.polys.length; j++)
+      {
+	var poly = this.polys[j];
+	if(poly.hidden)
+	  continue;
+	if(poly.distanceToScreen != zSorting[i])
+	  continue;
+	poly.put(center, this.fillColor, this.edgeColor);
+      }
+    }
+  }
+  Model.prototype.rotate = function(axis, angleRad)
+  {
+    for(var i = 0; i < this.points.length; i++)
+    {
+      this.points[i].rotate(axis, angleRad);
+    }
+    for(var i = 0; i < this.polys.length; i++)
+    {
+      this.polys[i].recalculateDistanceToScreen();
+      this.polys[i].hidden = Math.acos(this.polys[i].normal.z) >= Math.PI / 2;
+    }
+  }
+
+  function nextFrame()
+  {
+    ctx.fillStyle = 'rgba(0, 0, 0, 1)';  
+    ctx.fillRect(0, 0, canvas.width, canvas.height);  // clear canvas
+
+    model.rotate('y', 0.6 * Math.PI / 180);
+
+    ctx.fillStyle = 'rgba(50, 50, 200, 1)';
+    ctx.strokeStyle = 'rgba(60, 60, 210, 1)';
+    model.put(centerScreen);
+
+    // FPS calculation
+    if(!fpslastUpdate) 
+    {
+      fpslastUpdate = Date.now();
+    }
+    else
+    {
+      var now = Date.now();
+      fps.push(1000 / (now - fpslastUpdate));
+      fpslastUpdate = now;
+    }
+    if(fps.length >= fpsFilter)
+    {
+      var fpsValue = 0.0;
+      for(var i = fps.length - fpsFilter; i < fps.length; i++)
+	fpsValue += fps[i];
+
+      ctx.fillStyle = "white";
+      ctx.fillText("" + Math.floor(fpsValue/fpsFilter) + " fps", 10, 20);
+    }
+    if(fps.length >= fpsFilter * 8)
+    {
+      fps = fps.slice(fps.length - fpsFilter);
+    }
+  }
+
+  function processReqChange()
+  {
+    try {
+      if (req.readyState == 4) {
+	if (req.status == 200) {
+	  initAfterGettingModel(req.responseText)
+	} else {
+	    alert("Cannot get 3D data:\n" + req.statusText);
+	}
+      }
+    }
+    catch (e) {
+      alert(e+' line: ' + e.lineNumber);
+    }
+  }
+
+  function ply_reader(data)
+  {
+    var model;
+    var scaleFactor = PLYFile == 'monkey.ply' ? 100 : 50 ;
+    var hasNormal = false;
+
+    // Read header
+    while(data.length)
+    {
+      var retval = data.match(/.*/);
+      var str = retval[0];
+      data = data.substr(str.length+1);
+
+      var retval = str.match(/element (\w+) (\d+)/);
+      if(retval)
+      {
+	if(retval[1] == "vertex")
+	  var npoints = parseInt(retval[2]);
+	if(retval[1] == "face")
+	  var npolys = parseInt(retval[2]);
+      }
+      if(str == "property float nx")
+	hasNormal = true;
+
+      if(str == "end_header")
+	break;
+    }
+
+    // Read points
+    var minPoint = new point3D(Infinity, Infinity, Infinity);
+    var maxPoint = new point3D(-Infinity, -Infinity, -Infinity);
+    var points = [], uniquePointsKeys = [], uniquePoints = [];
+    var normals = [];
+    for (var i = 0; i < npoints; i++) 
+    {
+      var retval = data.match(/([\d.-]+ ?)+/);
+      var str = retval[0];
+      data = data.substr(str.length+1);
+
+      var retval = str.match(/([\d.-]+)/g);
+      var uniqueKey = ""+retval[0]+" "+retval[1]+" "+retval[2];
+      var index = uniquePointsKeys.indexOf(uniqueKey);
+      if(index == -1)
+      {
+	var point = new point3D(parseFloat(retval[0])*scaleFactor, parseFloat(retval[1])*scaleFactor, parseFloat(retval[2])*scaleFactor);
+	uniquePointsKeys.push(uniqueKey);
+	uniquePoints.push(point);
+      }
+      else
+      {
+	var point = uniquePoints[index];
+      }
+      points.push(point);
+
+      minPoint.x = Math.min(minPoint.x, point.x);minPoint.y = Math.min(minPoint.y, point.y);minPoint.z = Math.min(minPoint.z, point.z);
+      maxPoint.x = Math.max(maxPoint.x, point.x);maxPoint.y = Math.max(maxPoint.y, point.y);maxPoint.z = Math.max(maxPoint.z, point.z);
+      
+      if(hasNormal)
+      {
+	var normal = new point3D(parseFloat(retval[3]), parseFloat(retval[4]), parseFloat(retval[5]));
+	normals.push(normal);
+      }      
+    }
+
+    // Polygons
+    var polys = [];
+    for (var i = 0; i < npolys; i++) 
+    {
+      var retval = data.match(/(\d+ ?)+/);
+      var str = retval[0];
+      data = data.substr(str.length+1);
+      
+      var retval = str.match(/(\d+)/g);
+
+      var newPolyString = "new poly(";
+      newPolyString += hasNormal ? "normals["+retval[1]+"]," : "null,";
+
+      for (var j = 0; j < retval.length; j++) 
+      {
+	retval[j] = parseInt(retval[j]);
+	if(j >= 2)
+	  newPolyString += ",";
+	if(j)
+	  newPolyString += "points["+retval[j]+"]";
+      }
+      newPolyString += ");";
+      var polygon = eval(newPolyString);
+      polys.push(polygon);
+
+      var uniqueKey = ""+polygon.normal.x+" "+polygon.normal.y+" "+polygon.normal.z;
+      var index = uniquePointsKeys.indexOf(uniqueKey);
+      if(index == -1)
+      {
+	uniquePointsKeys.push(uniqueKey);
+	uniquePoints.push(polygon.normal);
+      }
+      else
+      {
+	polygon.normal = uniquePoints[index];
+      }
+    }
+
+    var divinfo = document.getElementById('fileinfo');
+    divinfo.innerHTML += ", polygons: "+npolys+", points: "+npoints;
+
+    // Create model
+    model = new Model(polys, uniquePoints, new color(220,220,30,1), null);
+    // Center model
+    model.move(new point3D(-(maxPoint.x + minPoint.x)/2, -(maxPoint.y + minPoint.y)/2, -(maxPoint.z + minPoint.z)/2));
+
+    return model;
+  }
+
+  
+  var PLYFile = 'monkey.ply';
+  var fpsWanted = 24;
+  var fps = [], fpslastUpdate;
+  var fpsFilter = fpsWanted*2;
+  function init()
+  {
+    document.getElementById('startButton').disabled = false;
+
+    // Redefine model file
+    var retval = document.location.search.match(/file=([\w\.]+)/);
+    if(retval)
+      PLYFile = retval[1];
+
+    var divinfo = document.getElementById('fileinfo');
+    divinfo.innerHTML = "File: <a href='"+PLYFile+"'>"+PLYFile+"</a>";
+
+    canvas = document.getElementById('canvas');
+    if (canvas.getContext){
+      ctx = canvas.getContext('2d');
+
+      ctx.fillStyle = 'rgba(0, 0, 0, 1)';
+      ctx.fillRect(0, 0, canvas.width, canvas.height); // clear canvas
+
+      centerScreen = new point3D(canvas.width / 2, canvas.height / 2, 0);
+      
+      try {
+	req = new XMLHttpRequest();
+      } catch (e) {
+	alert("Unsupported browser:\n"+e);
+      }
+      if (req) {
+	// Try to get model
+	req.open("GET", PLYFile, true);
+	req.onreadystatechange = processReqChange;
+	req.send(null);
+      }
+    }
+  }
+
+  function initAfterGettingModel(data)
+  {
+    model = ply_reader(data);
+    
+    var divinfo = document.getElementById('fileinfo');
+    divinfo.innerHTML += ", unique points+normals: "+model.points.length;
+    if(PLYFile == 'monkey.ply')
+      model.rotate('y', 211 * Math.PI / 180);
+    else
+      model.rotate('x', -90 * Math.PI / 180);
+
+    model.put(centerScreen);
+  }
+
+  function startRotating()
+  {
+    for each(var el in document.getElementsByName('fps'))
+      if(el.checked == true)
+	fpsWanted = el.value;
+    document.getElementById('startButton').disabled = true;
+    document.getElementById('stopButton').disabled = false;
+    if(typeof timer != "undefined")
+      return;
+    timer = setInterval(nextFrame, 1000 / fpsWanted);
+  }
+  function stopRotating()
+  {
+    document.getElementById('startButton').disabled = false;
+    document.getElementById('stopButton').disabled = true;
+    if(!timer)
+      return;
+    clearInterval(timer);
+    timer = undefined;
+    fps = [];
+  }
+  function changeFPS(input)
+  {
+    if(typeof timer != "undefined")
+    {
+      stopRotating();
+      startRotating();
+    }
+  }
+</script>
+
+<style type="text/css">
+  canvas { border: 0px solid black; }
+</style>
+
+</head>
+
+
+<body onload="init();">
+
+<h1>PLY 3D model viewer based on HTML5 canvas on 2D contex</h1>
+<p>Features:
+  <ul>
+    <li>3D operations: rotating, moving object center</li>
+    <li>Direct illumination</li>
+    <li>Highlighting edges</li>
+    <li>Painter's algorithm for sorting polygons</li>
+    <li>Optimizations: 
+      <ul>
+	<li>Skip outputting of invisible polygons</li>
+	<li>Skip processing of duplicated points, normals</li>
+      </ul>
+      </li>
+  </ul>
+</p>
+<canvas id="canvas" width="400" height="225"></canvas>
+<br>
+<div id="fileinfo"></div>
+<br>
+Max allowed:
+<input type="radio" name="fps" onclick="changeFPS(this)" value="12"/>12 fps
+<input type="radio" name="fps" onclick="changeFPS(this)" value="24" checked="checked"/>24 fps
+<input type="radio" name="fps" onclick="changeFPS(this)" value="48"/>48 fps
+<input type="radio" name="fps" onclick="changeFPS(this)" value="60"/>60 fps 
+<input type="radio" name="fps" onclick="changeFPS(this)" value="72"/>72 fps 
+<input type="radio" name="fps" onclick="changeFPS(this)" value="100"/>100 fps
+<input type="radio" name="fps" onclick="changeFPS(this)" value="120"/>120 fps 
+<br>
+<button id="startButton" onclick="startRotating()">Start Y rotating</button> <button id="stopButton" onclick="stopRotating()" disabled="disabled">Stop Y rotating</button>
+</body>
+
+</html>
