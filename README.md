@@ -12,17 +12,16 @@ Features:
 * 3D operations: rotating, moving object center
 * Direct illumination
 * Highlighting edges
-* Painter''s algorithm for sorting polygons
+* Painter's algorithm for sorting polygons
 * Optimizations: Skip processing of invisible polygons, skip processing of duplicated points, normals
 
 
 #### Requirements:
 * Internet Explorer 9
+* Chrome 4.0
 * Firefox 2.0
-* Safari 3.1
-* Opera 9.0
-* Safari (Mobile) 3.2
-* Opera (Mobile) 10.0
+* Safari 3.1, mobile Safari 3.2
+* Opera 9.0, mobile Opera 10.0
 * Android Browser 2.1
 
-**Warning!** canvas-ply-reader.html won''t work from disk because it uses AJAX to load **.ply** model file.
+**Warning!** canvas-ply-reader.html won't work from disk because it uses AJAX to load **.ply** model file.

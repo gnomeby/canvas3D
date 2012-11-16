@@ -539,9 +539,11 @@
 
   function startRotating()
   {
-    for each(var el in document.getElementsByName('fps'))
-      if(el.checked == true)
-	fpsWanted = el.value;
+    var radios = document.getElementsByName('fps');
+    for (var index in radios)
+      if(radios[index].checked == true)
+	fpsWanted = radios[index].value;
+
     document.getElementById('startButton').disabled = true;
     document.getElementById('stopButton').disabled = false;
     if(typeof timer != "undefined")
