@@ -305,6 +305,8 @@
 	poly.put(center, this.fillColor, this.edgeColor);
       }
     }
+
+    return zSorting.length;
   }
   Model.prototype.rotate = function(axis, angleRad)
   {
@@ -328,7 +330,7 @@
 
     ctx.fillStyle = 'rgba(50, 50, 200, 1)';
     ctx.strokeStyle = 'rgba(60, 60, 210, 1)';
-    model.put(centerScreen);
+    var visiblePolygons = model.put(centerScreen);
 
     // FPS calculation
     if(!fpslastUpdate) 
@@ -348,7 +350,7 @@
 	fpsValue += fps[i];
 
       ctx.fillStyle = "white";
-      ctx.fillText("" + Math.floor(fpsValue/fpsFilter) + " fps", 10, 20);
+      ctx.fillText("" + Math.floor(fpsValue/fpsFilter) + " fps, "+visiblePolygons+" visible polygons, "+Math.round(visiblePolygons*fpsValue/fpsFilter)+" polygons per sec", 8, 16);
     }
     if(fps.length >= fpsFilter * 8)
     {
@@ -599,13 +601,13 @@
 <div id="fileinfo"></div>
 <br>
 Max allowed:
-<input type="radio" name="fps" onclick="changeFPS(this)" value="12"/>12 fps
-<input type="radio" name="fps" onclick="changeFPS(this)" value="24" checked="checked"/>24 fps
-<input type="radio" name="fps" onclick="changeFPS(this)" value="48"/>48 fps
-<input type="radio" name="fps" onclick="changeFPS(this)" value="60"/>60 fps 
-<input type="radio" name="fps" onclick="changeFPS(this)" value="72"/>72 fps 
-<input type="radio" name="fps" onclick="changeFPS(this)" value="100"/>100 fps
-<input type="radio" name="fps" onclick="changeFPS(this)" value="120"/>120 fps 
+<label><input type="radio" name="fps" onclick="changeFPS(this)" value="12"/>12 fps</label>
+<label><input type="radio" name="fps" onclick="changeFPS(this)" value="24" checked="checked"/>24 fps</label>
+<label><input type="radio" name="fps" onclick="changeFPS(this)" value="48"/>48 fps</label>
+<label><input type="radio" name="fps" onclick="changeFPS(this)" value="60"/>60 fps</label>
+<label><input type="radio" name="fps" onclick="changeFPS(this)" value="72"/>72 fps</label>
+<label><input type="radio" name="fps" onclick="changeFPS(this)" value="100"/>100 fps</label>
+<label><input type="radio" name="fps" onclick="changeFPS(this)" value="120"/>120 fps</label>
 <br>
 <button id="startButton" onclick="startRotating()">Start Y rotating</button> <button id="stopButton" onclick="stopRotating()" disabled="disabled">Stop Y rotating</button>
 </body>
