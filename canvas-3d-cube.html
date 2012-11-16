@@ -268,12 +268,15 @@
 <h1>3D cube HTML5 canvas realization on 2D contex</h1>
 <p>Features:
   <ul>
-    <li>3D moving object</li>
-    <li>3D rotating</li>
+    <li>3D operations: rotating, moving object center</li>
     <li>Direct illumination</li>
     <li>Highlighting edges</li>
-    <li>Skip processing for invisible polygons</li>
-    <li>Optimization processing for points</li>
+    <li>Optimizations: 
+      <ul>
+	<li>Skip outputting of invisible polygons</li>
+	<li>Skip processing of duplicated points</li>
+      </ul>
+      </li>
   </ul>
 </p>
 <canvas id="3Dcube" width="400" height="225"></canvas>
