@@ -5,8 +5,8 @@ PLY 3D model viewer based on HTML5 canvas
 
 Examples:
 * Creating manually 3D model (see *Cube function* in canvas-3d-cube.html)
-* Reading PLY format (see canvas-ply-reader.html)
-* Utah teapot (see canvas-ply-reader.html?file=teapot.ply)
+* Suzanne monkey (http://gnomeby.github.com/canvas3D/canvas-ply-reader.html?file=monkey.ply "see canvas-ply-reader.html?file=monkey.ply")
+* Utah teapot (http://gnomeby.github.com/canvas3D/canvas-ply-reader.html?file=teapot.ply "see canvas-ply-reader.html?file=teapot.ply")
 
 Features:
 * 3D operations: rotating, moving object center

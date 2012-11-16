@@ -285,7 +285,9 @@
 	continue;
       zSorting.push(poly.distanceToScreen);
     }
-    zSorting.sort();
+    
+    zSorting.sort((function(a, b){return a - b;}));
+
     var lastZ;
     for(var i = 0; i < zSorting.length; i++)
     {
@@ -529,9 +531,7 @@
     
     var divinfo = document.getElementById('fileinfo');
     divinfo.innerHTML += ", unique points+normals: "+model.points.length;
-    if(PLYFile == 'monkey.ply')
-      model.rotate('y', 211 * Math.PI / 180);
-    else
+    if(PLYFile == 'teapot.ply')
       model.rotate('x', -90 * Math.PI / 180);
 
     model.put(centerScreen);
