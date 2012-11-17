@@ -32,10 +32,18 @@ Performance
 
 Intel Core2 Duo 2.00GHz
 
-Suzanne monkey (500 polygons):
+Suzanne monkey (500 polygons, 150-350 visible depending on side):
 * Firefox 10.0: 34-68 fps
 * Chromium 23: 65-95 fps
 
-Utah teapot (2256 polygons):
+Utah teapot (2256 polygons, 1100 visible):
 * Firefox 10.0: 7 fps
 * Chromium 23: 13 fps
+
+iPad 3: 1 GHz dual-core ARM Cortex-A9, iOS 6.0.1
+
+Suzanne monkey (500 polygons, 150-350 visible depending on side):
+* Safari: 13-23 fps
+
+Utah teapot (2256 polygons, 1100 visible):
+* Safari: 2 fps
