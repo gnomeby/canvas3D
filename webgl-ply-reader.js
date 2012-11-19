@@ -1,35 +1,31 @@
 var canvas;
 var gl;
-var centerScreen;
 
 var model;
 var modelVerticesBuffer;
 var modelVerticesColorBuffer;
+var modelVerticesNormalBuffer;
 var modelVerticesIndexBuffer;
 
-var cubeRotation = 2.0;
-var cubeXOffset = 0.0;
-var cubeYOffset = 0.0;
-var cubeZOffset = 0.0;
-var lastCubeUpdateTime = 0;
-var xIncValue = 0.2;
-var yIncValue = -0.4;
-var zIncValue = 0.3;
+var modelRotation = 0.0;
+var additionalRotationAngle = 0.0;
+var additionalRotationMatrix = [0, 0, 0];
 
 var mvMatrix;
 var shaderProgram;
 var vertexPositionAttribute;
+var vertexNormalAttribute
 var vertexColorAttribute;
 var perspectiveMatrix;
 
 
 //
-// initWebGL
+// initWebGLcanvas
 //
 // Initialize WebGL, returning the GL context or null if
 // WebGL isn't available or could not be initialized.
 //
-function initWebGL(canvas) {
+function initWebGL() {
   gl = null;
   
   try {
@@ -60,7 +56,7 @@ function drawScene() {
   // scene. Our field of view is 45 degrees, with a width/height
   // ratio of 640:480, and we only want to see objects between 0.1 units
   // and 100 units away from the camera.  
-  perspectiveMatrix = makePerspective(45, centerScreen.x/centerScreen.y, 0.1, 100.0);
+  perspectiveMatrix = makePerspective(45, canvas.width/canvas.height, 0.1, 100.0);
   
   // Set the drawing position to the "identity" point, which is
   // the center of the scene.
@@ -70,52 +66,34 @@ function drawScene() {
   // Now move the drawing position a bit to where we want to start
   // drawing the square.
   
-  mvTranslate([0.0, 0.0, -3.5]);
+  mvTranslate([0.0, 0.0, -3.2]);
   
   // Save the current matrix, then rotate before we draw.
   
   mvPushMatrix();
-  mvRotate(cubeRotation, [1, 0, 1]);
-  mvTranslate([cubeXOffset, cubeYOffset, cubeZOffset]);
+  mvRotate(modelRotation, [0, 1, 0]);
+  if(additionalRotationAngle)
+  {
+    mvRotate(additionalRotationAngle, additionalRotationMatrix);
+  }
   
-  // Draw the cube by binding the array buffer to the cube's vertices
-  // array, setting attributes, and pushing it to GL.  
   gl.bindBuffer(gl.ARRAY_BUFFER, modelVerticesBuffer);
   gl.vertexAttribPointer(vertexPositionAttribute, 3, gl.FLOAT, false, 0, 0);
   
   // Set the colors attribute for the vertices.  
   gl.bindBuffer(gl.ARRAY_BUFFER, modelVerticesColorBuffer);
-  gl.vertexAttribPointer(vertexColorAttribute, 3, gl.FLOAT, false, 0, 0);
+  gl.vertexAttribPointer(vertexColorAttribute, 4, gl.FLOAT, false, 0, 0);
   
-  // Draw the cube.  
+  // Bind the normals buffer to the shader attribute.
+  gl.bindBuffer(gl.ARRAY_BUFFER, modelVerticesNormalBuffer);
+  gl.vertexAttribPointer(vertexNormalAttribute, 3, gl.FLOAT, false, 0, 0);
+  // Draw triangles
   gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, modelVerticesIndexBuffer);
   setMatrixUniforms();
   gl.drawElements(gl.TRIANGLES, model.polys.length, gl.UNSIGNED_SHORT, 0);
   
   // Restore the original matrix
-  
   mvPopMatrix();
-  
-  // Update the rotation for the next draw, if it's time to do so.
-/*  
-  var currentTime = (new Date).getTime();
-  if (lastCubeUpdateTime) {
-    var delta = currentTime - lastCubeUpdateTime;
-    
-    cubeRotation += (30 * delta) / 1000.0;
-    cubeXOffset += xIncValue * ((30 * delta) / 1000.0);
-    cubeYOffset += yIncValue * ((30 * delta) / 1000.0);
-    cubeZOffset += zIncValue * ((30 * delta) / 1000.0);
-    
-    if (Math.abs(cubeYOffset) > 2.5) {
-      xIncValue = -xIncValue;
-      yIncValue = -yIncValue;
-      zIncValue = -zIncValue;
-    }
-  }
-  
-  lastCubeUpdateTime = currentTime;
-  */
 }
 
 //
@@ -144,6 +122,9 @@ function initShaders() {
   
   vertexPositionAttribute = gl.getAttribLocation(shaderProgram, "aVertexPosition");
   gl.enableVertexAttribArray(vertexPositionAttribute);
+  
+  vertexNormalAttribute = gl.getAttribLocation(shaderProgram, "aVertexNormal");
+  gl.enableVertexAttribArray(vertexNormalAttribute);
   
   vertexColorAttribute = gl.getAttribLocation(shaderProgram, "aVertexColor");
   gl.enableVertexAttribArray(vertexColorAttribute);
@@ -230,6 +211,11 @@ function setMatrixUniforms() {
 
   var mvUniform = gl.getUniformLocation(shaderProgram, "uMVMatrix");
   gl.uniformMatrix4fv(mvUniform, false, new Float32Array(mvMatrix.flatten()));
+  
+  var normalMatrix = mvMatrix.inverse();
+  normalMatrix = normalMatrix.transpose();
+  var nUniform = gl.getUniformLocation(shaderProgram, "uNormalMatrix");
+  gl.uniformMatrix4fv(nUniform, false, new Float32Array(normalMatrix.flatten()));
 }
 
 var mvMatrixStack = [];
@@ -258,188 +244,3 @@ function mvRotate(angle, v) {
   var m = Matrix.Rotation(inRadians, $V([v[0], v[1], v[2]])).ensure4x4();
   multMatrix(m);
 }
-
-
-function initBuffers() {
-  
-  // Create a buffer for the cube's vertices.
-  
-  modelVerticesBuffer = gl.createBuffer();
-  
-  // Select the cubeVerticesBuffer as the one to apply vertex
-  // operations to from here out.
-  
-  gl.bindBuffer(gl.ARRAY_BUFFER, modelVerticesBuffer);
-  
-  // Now create an array of vertices for the cube.
-  
-  var vertices = [
-    // Front face
-    -1.0, -1.0,  1.0,
-     1.0, -1.0,  1.0,
-     1.0,  1.0,  1.0,
-    -1.0,  1.0,  1.0,
-    
-    // Back face
-    -1.0, -1.0, -1.0,
-    -1.0,  1.0, -1.0,
-     1.0,  1.0, -1.0,
-     1.0, -1.0, -1.0,
-    
-    // Top face
-    -1.0,  1.0, -1.0,
-    -1.0,  1.0,  1.0,
-     1.0,  1.0,  1.0,
-     1.0,  1.0, -1.0,
-    
-    // Bottom face
-    -1.0, -1.0, -1.0,
-     1.0, -1.0, -1.0,
-     1.0, -1.0,  1.0,
-    -1.0, -1.0,  1.0,
-    
-    // Right face
-     1.0, -1.0, -1.0,
-     1.0,  1.0, -1.0,
-     1.0,  1.0,  1.0,
-     1.0, -1.0,  1.0,
-    
-    // Left face
-    -1.0, -1.0, -1.0,
-    -1.0, -1.0,  1.0,
-    -1.0,  1.0,  1.0,
-    -1.0,  1.0, -1.0
-  ];
-  
-  // Now pass the list of vertices into WebGL to build the shape. We
-  // do this by creating a Float32Array from the JavaScript array,
-  // then use it to fill the current vertex buffer.
-  
-  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STATIC_DRAW);
-  
-  // Now set up the colors for the faces. We'll use solid colors
-  // for each face.
-  
-  var colors = [
-    [1.0,  1.0,  1.0,  1.0],    // Front face: white
-    [1.0,  0.0,  0.0,  1.0],    // Back face: red
-    [0.0,  1.0,  0.0,  1.0],    // Top face: green
-    [0.0,  0.0,  1.0,  1.0],    // Bottom face: blue
-    [1.0,  1.0,  0.0,  1.0],    // Right face: yellow
-    [1.0,  0.0,  1.0,  1.0]     // Left face: purple
-  ];
-  
-  // Convert the array of colors into a table for all the vertices.
-  
-  var generatedColors = [];
-  
-  for (j=0; j<6; j++) {
-    var c = colors[j];
-    
-    // Repeat each color four times for the four vertices of the face
-    
-    for (var i=0; i<3; i++) {
-      generatedColors = generatedColors.concat(c);
-    }
-  }
-  
-  modelVerticesColorBuffer = gl.createBuffer();
-  gl.bindBuffer(gl.ARRAY_BUFFER, modelVerticesColorBuffer);
-  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(generatedColors), gl.STATIC_DRAW);
-
-  // Build the element array buffer; this specifies the indices
-  // into the vertex array for each face's vertices.
-  
-  modelVerticesIndexBuffer = gl.createBuffer();
-  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, modelVerticesIndexBuffer);
-  
-  // This array defines each face as two triangles, using the
-  // indices into the vertex array to specify each triangle's
-  // position.
-  
-  var cubeVertexIndices = [
-    0,  1,  2,      0,  2,  3,    // front
-    4,  5,  6,      4,  6,  7,    // back
-    8,  9,  10,     8,  10, 11,   // top
-    12, 13, 14,     12, 14, 15,   // bottom
-    16, 17, 18,     16, 18, 19,   // right
-    20, 21, 22,     20, 22, 23    // left
-  ]
-  
-  // Now send the element array to GL
-  
-  gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,
-      new Uint16Array(cubeVertexIndices), gl.STATIC_DRAW);
-}
-/*
-function drawScene() {
-  // Clear the canvas before we start drawing on it.
-
-  gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-  
-  // Establish the perspective with which we want to view the
-  // scene. Our field of view is 45 degrees, with a width/height
-  // ratio of 640:480, and we only want to see objects between 0.1 units
-  // and 100 units away from the camera.
-  
-  perspectiveMatrix = makePerspective(45, 640.0/480.0, 0.1, 100.0);
-  
-  // Set the drawing position to the "identity" point, which is
-  // the center of the scene.
-  
-  loadIdentity();
-  
-  // Now move the drawing position a bit to where we want to start
-  // drawing the cube.
-  
-  mvTranslate([-0.0, 0.0, -6.0]);
-  
-  // Save the current matrix, then rotate before we draw.
-  
-  mvPushMatrix();
-  mvRotate(cubeRotation, [1, 0, 1]);
-  mvTranslate([cubeXOffset, cubeYOffset, cubeZOffset]);
-  
-  // Draw the cube by binding the array buffer to the cube's vertices
-  // array, setting attributes, and pushing it to GL.
-  
-  gl.bindBuffer(gl.ARRAY_BUFFER, modelVerticesBuffer);
-  gl.vertexAttribPointer(vertexPositionAttribute, 3, gl.FLOAT, false, 0, 0);
-  
-  // Set the colors attribute for the vertices.
-  
-  gl.bindBuffer(gl.ARRAY_BUFFER, modelVerticesColorBuffer);
-  gl.vertexAttribPointer(vertexColorAttribute, 4, gl.FLOAT, false, 0, 0);
-  
-  // Draw the cube.
-  
-  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, modelVerticesIndexBuffer);
-  setMatrixUniforms();
-  gl.drawElements(gl.TRIANGLE,S 36, gl.UNSIGNED_SHORT, 0);
-  
-  // Restore the original matrix
-  
-  mvPopMatrix();
-  
-  // Update the rotation for the next draw, if it's time to do so.
-  
-  var currentTime = (new Date).getTime();
-  if (lastCubeUpdateTime) {
-    var delta = currentTime - lastCubeUpdateTime;
-    
-    cubeRotation += (30 * delta) / 1000.0;
-    cubeXOffset += xIncValue * ((30 * delta) / 1000.0);
-    cubeYOffset += yIncValue * ((30 * delta) / 1000.0);
-    cubeZOffset += zIncValue * ((30 * delta) / 1000.0);
-    
-    if (Math.abs(cubeYOffset) > 2.5) {
-      xIncValue = -xIncValue;
-      yIncValue = -yIncValue;
-      zIncValue = -zIncValue;
-    }
-  }
-  
-  lastCubeUpdateTime = currentTime;
-}
-
-*/
