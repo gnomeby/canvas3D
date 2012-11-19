@@ -1,0 +1,423 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<title>PLY 3D model viewer based on HTML5 canvas</title>
+
+<script src="sylvester.src.js" type="text/javascript"></script>
+<script src="glUtils.js" type="text/javascript"></script>
+<script src="webgl-ply-reader.js" type="text/javascript"></script>
+
+<script type="text/javascript">
+  function point3D(x, y, z)
+  {
+    this.x = x;
+    this.y = y;
+    this.z = z;
+  }
+
+  function Model(vertices, vertexNormals, polys)
+  {
+    // Create a buffer for the model's vertices.
+    modelVerticesBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, modelVerticesBuffer);    
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STATIC_DRAW);
+
+
+    // Set up the normals for the vertices, so that we can compute lighting.
+    modelVerticesNormalBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, modelVerticesNormalBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertexNormals), gl.STATIC_DRAW);
+
+
+    // Now set up the colors for the faces. We'll use solid colors
+    // for each face.
+    var color = [1.0*220/255,  1.0*220/255,  1.0*30/255,  1.0];
+    // Convert the array of colors into a table for all the vertices.
+    var generatedColors = [];
+    for (i = 0; i < polys.length; i++) {
+	generatedColors = generatedColors.concat(color);
+    }
+    modelVerticesColorBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, modelVerticesColorBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(generatedColors), gl.STATIC_DRAW);
+
+
+    // Build the element array buffer; this specifies the indices
+    // into the vertex array for each face's vertices.
+    modelVerticesIndexBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, modelVerticesIndexBuffer);
+    // Now send the element array to GL
+    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(polys), gl.STATIC_DRAW);
+    
+
+    this.vertices = vertices;
+    this.normals = vertexNormals;
+    this.polys = polys;
+  }
+
+
+  function nextFrame()
+  {
+    modelRotation += 0.6;
+    drawScene();
+
+    // FPS calculation
+    if(!fpslastUpdate) 
+    {
+      fpslastUpdate = Date.now();
+    }
+    else
+    {
+      var now = Date.now();
+      fps.push(1000 / (now - fpslastUpdate));
+      fpslastUpdate = now;
+    }
+    if(fps.length >= fpsFilter)
+    {
+      var fpsValue = 0.0;
+      for(var i = fps.length - fpsFilter; i < fps.length; i++)
+	fpsValue += fps[i];
+
+      document.getElementById('fpsInfo').innerHTML = "" + Math.floor(fpsValue/fpsFilter) + " fps<br/>";
+    }
+    if(fps.length >= fpsFilter * 8)
+    {
+      fps = fps.slice(fps.length - fpsFilter);
+    }
+  }
+
+  function processReqChange()
+  {
+    try {
+      if (req.readyState == 4) {
+	if (req.status == 200) {
+	  initAfterGettingModel(req.responseText)
+	} else {
+	    alert("Cannot get 3D data:\n" + req.statusText);
+	}
+      }
+    }
+    catch (e) {
+      alert(e+' line: ' + e.lineNumber);
+    }
+  }
+
+  function ply_reader(data)
+  {
+    var hasNormal = false;
+
+    // Read header
+    while(data.length)
+    {
+      var retval = data.match(/.*/);
+      var str = retval[0];
+      data = data.substr(str.length+1);
+
+      var retval = str.match(/element (\w+) (\d+)/);
+      if(retval)
+      {
+	if(retval[1] == "vertex")
+	  var npoints = parseInt(retval[2]);
+	if(retval[1] == "face")
+	  var npolys = parseInt(retval[2]);
+      }
+      if(str == "property float nx")
+	hasNormal = true;
+
+      if(str == "end_header")
+	break;
+    }
+
+    // Read points
+    var minPoint = new point3D(Infinity, Infinity, Infinity);
+    var maxPoint = new point3D(-Infinity, -Infinity, -Infinity);
+    var vertices = [];
+    var vertexNormals = [];
+    for (var i = 0; i < npoints; i++) 
+    {
+      var retval = data.match(/([\d.-]+ ?)+/);
+      var str = retval[0];
+      data = data.substr(str.length+1);
+
+      var retval = str.match(/([\d.-]+)/g);
+      var point = new point3D(parseFloat(retval[0]), parseFloat(retval[1]), parseFloat(retval[2]));
+      vertices.push(point.x, point.y, point.z);
+
+      if(hasNormal)
+	vertexNormals.push(parseFloat(retval[3]), parseFloat(retval[4]), parseFloat(retval[5]));
+
+      minPoint.x = Math.min(minPoint.x, point.x);minPoint.y = Math.min(minPoint.y, point.y);minPoint.z = Math.min(minPoint.z, point.z);
+      maxPoint.x = Math.max(maxPoint.x, point.x);maxPoint.y = Math.max(maxPoint.y, point.y);maxPoint.z = Math.max(maxPoint.z, point.z);
+    }
+
+    // Polygons
+    var polys = [];
+    var index = 0;
+    var newVertices = [];
+    for (var i = 0; i < npolys; i++) 
+    {
+      var retval = data.match(/(\d+ ?)+/);
+      var str = retval[0];
+      data = data.substr(str.length+1);
+      
+      var retval = str.match(/(\d+)/g);
+      var nvertex = parseInt(retval[0]);
+
+      var aIndex = parseInt(retval[1]);
+      var bIndex = parseInt(retval[2]);
+      var cIndex = parseInt(retval[3]);
+
+      if(!hasNormal)
+      {
+	// Polygon normal
+	var p0 = new point3D(vertices[aIndex*3+0], vertices[aIndex*3+1], vertices[aIndex*3+2]);
+	var p1 = new point3D(vertices[bIndex*3+0], vertices[bIndex*3+1], vertices[bIndex*3+2]);
+	var p2 = new point3D(vertices[cIndex*3+0], vertices[cIndex*3+1], vertices[cIndex*3+2]);
+
+	var v1 = new point3D(p2.x - p1.x, p2.y - p1.y, p2.z - p1.z);
+	var v2 = new point3D(p0.x - p1.x, p0.y - p1.y, p0.z - p1.z);
+	var normal = new point3D(v1.y*v2.z-v2.y*v1.z, v1.z*v2.x-v2.z*v1.x, v1.x*v2.y-v2.x*v1.y);
+	var normalLen = Math.sqrt(normal.x*normal.x + normal.y*normal.y + normal.z*normal.z);
+	normal.x /= normalLen;
+	normal.y /= normalLen;
+	normal.z /= normalLen;
+      }
+
+      if(nvertex == 3 || nvertex == 4)
+      {	
+	if(!hasNormal)
+	{	
+	  polys.push(index++, index++, index++);
+	  newVertices.push(p0.x, p0.y, p0.z);
+	  newVertices.push(p1.x, p1.y, p1.z);
+	  newVertices.push(p2.x, p2.y, p2.z);
+	  vertexNormals.push(normal.x, normal.y, normal.z);
+	  vertexNormals.push(normal.x, normal.y, normal.z);
+	  vertexNormals.push(normal.x, normal.y, normal.z);
+	}
+	else
+	  polys.push(aIndex, bIndex, cIndex);
+      }
+      if(nvertex == 4)
+      {
+	var dIndex = parseInt(retval[4]);
+	var p3 = new point3D(vertices[dIndex*3+0], vertices[dIndex*3+1], vertices[dIndex*3+2]);
+
+	if(!hasNormal)
+	{	
+	  polys.push(index++, index++, index++);
+	  newVertices.push(p0.x, p0.y, p0.z);
+	  newVertices.push(p2.x, p2.y, p2.z);
+	  newVertices.push(p3.x, p3.y, p3.z);
+	  vertexNormals.push(normal.x, normal.y, normal.z);
+	  vertexNormals.push(normal.x, normal.y, normal.z);
+	  vertexNormals.push(normal.x, normal.y, normal.z);
+	}
+	else
+	  polys.push(aIndex, cIndex, dIndex);
+      }
+    }
+    if(!hasNormal)
+    {
+      vertices = newVertices;
+    }
+
+
+    document.getElementById('fileinfo').innerHTML += ", polygons: "+npolys+", points: "+npoints;
+
+
+
+    // Move to center of object
+    var centerMove = new point3D(-(maxPoint.x + minPoint.x)/2, -(maxPoint.y + minPoint.y)/2, -(maxPoint.z + minPoint.z)/2);
+    var scaleY = (maxPoint.y - minPoint.y) / 2;
+    for (var i = 0; i < vertices.length; i+=3) 
+    {
+      vertices[i+0] += centerMove.x;
+      vertices[i+1] += centerMove.y;
+      vertices[i+2] += centerMove.z;
+
+      vertices[i+0] /= scaleY;
+      vertices[i+1] /= scaleY;
+      vertices[i+2] /= scaleY;
+    }
+
+    // Create model
+    model = new Model(vertices, vertexNormals, polys);
+
+    // Return moving to center model
+    return model;
+  }
+
+  
+  var PLYFile = 'monkey.ply';
+  var fpsWanted = 24;
+  var fps = [], fpslastUpdate;
+  var fpsFilter = fpsWanted*2;
+  function init()
+  {
+    document.getElementById('startButton').disabled = false;
+
+    // Redefine model file
+    var retval = document.location.search.match(/file=([\w\.]+)/);
+    if(retval)
+      PLYFile = retval[1];
+
+    document.getElementById('fileinfo').innerHTML = "File: <a href='"+PLYFile+"'>"+PLYFile+"</a>";
+
+    canvas = document.getElementById("canvas");
+    initWebGL();      // Initialize the GL context
+    
+    // Only continue if WebGL is available and working
+    if (gl) {
+      gl.clearColor(0.0, 0.0, 0.0, 1.0);                      // Set clear color to black, fully opaque
+      gl.enable(gl.DEPTH_TEST);                               // Enable depth testing
+      gl.depthFunc(gl.LEQUAL);                                // Near things obscure far things
+      gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);      // Clear the color as well as the depth buffer.
+    }
+
+    // Initialize the shaders; this is where all the lighting for the
+    // vertices and so forth is established.
+    
+    initShaders();
+    
+    // Here's where we call the routine that builds all the objects
+    // we'll be drawing.
+
+    try {
+      req = new XMLHttpRequest();
+    } catch (e) {
+      alert("Unsupported browser:\n" + e);
+    }
+    if (req) {
+      // Try to get model
+      req.open("GET", PLYFile, true);
+      req.onreadystatechange = processReqChange;
+      req.send(null);
+    }
+  }
+
+  function initAfterGettingModel(data)
+  {
+    moveForCentering = ply_reader(data);
+    
+
+    if(PLYFile == 'teapot.ply')
+    {
+      additionalRotationAngle = -90.0;
+      additionalRotationMatrix = [1, 0, 0];
+    }
+
+    drawScene();
+  }
+
+  function startRotating()
+  {
+    var radios = document.getElementsByName('fps');
+    for (var index in radios)
+      if(radios[index].checked == true)
+	fpsWanted = radios[index].value;
+
+    document.getElementById('fpsInfo').innerHTML = "";
+
+    document.getElementById('startButton').disabled = true;
+    document.getElementById('stopButton').disabled = false;
+    if(typeof timer != "undefined")
+      return;
+    timer = setInterval(nextFrame, 1000 / fpsWanted);
+  }
+  function stopRotating()
+  {
+    document.getElementById('startButton').disabled = false;
+    document.getElementById('stopButton').disabled = true;
+    if(!timer)
+      return;
+    clearInterval(timer);
+    timer = undefined;
+    fps = [];
+  }
+  function changeFPS(input)
+  {
+    if(typeof timer != "undefined")
+    {
+      stopRotating();
+      startRotating();
+    }
+  }
+</script>
+
+<style type="text/css">
+  canvas { border: 0px solid black; }
+</style>
+
+<script id="shader-fs" type="x-shader/x-fragment">
+  varying lowp vec4 vColor;
+  varying highp vec3 vLighting;
+
+  uniform sampler2D uSampler;
+
+  void main(void) 
+  {
+    gl_FragColor = vec4(vColor.rgb * vLighting, vColor.a);
+  }
+</script>
+
+<script id="shader-vs" type="x-shader/x-vertex">
+  attribute highp vec3 aVertexNormal;
+  attribute highp vec3 aVertexPosition;
+  attribute vec4 aVertexColor;
+
+  uniform highp mat4 uNormalMatrix;
+  uniform highp mat4 uMVMatrix;
+  uniform highp mat4 uPMatrix;
+
+  varying highp vec3 vLighting;
+  varying lowp vec4 vColor;
+
+  void main(void) {
+    gl_Position = uPMatrix * uMVMatrix * vec4(aVertexPosition, 1.0);
+    vColor = aVertexColor;
+    
+    // Apply lighting effect    
+    highp vec3 ambientLight = vec3(0.1, 0.1, 0.1);
+    highp vec3 directionalLightColor = vec3(0.9, 0.9, 0.9);
+    highp vec3 directionalVector = vec3(0.0, 0.0, 0.8);
+    
+    highp vec4 transformedNormal = uNormalMatrix * vec4(aVertexNormal, 1.0);
+    
+    highp float directional = max(dot(transformedNormal.xyz, directionalVector), 0.0);
+    vLighting = ambientLight + (directionalLightColor * directional);
+  }
+</script>
+
+</head>
+
+
+<body onload="init()">
+
+<h1>PLY 3D model viewer based on HTML5 canvas on WebGL contex</h1>
+<p>Features:
+  <ul>
+    <li>3D operations: rotating, moving object center</li>
+    <li>Directional light</li>
+    <li>Perspetive camera</li>
+  </ul>
+</p>
+<canvas id="canvas" width="400" height="225"></canvas>
+<br>
+<div id="fileinfo"></div>
+<br>
+<span id="fpsInfo"></span>
+Max allowed:
+<label><input type="radio" name="fps" onclick="changeFPS(this)" value="12"/>12 fps</label>
+<label><input type="radio" name="fps" onclick="changeFPS(this)" value="24" checked="checked"/>24 fps</label>
+<label><input type="radio" name="fps" onclick="changeFPS(this)" value="48"/>48 fps</label>
+<label><input type="radio" name="fps" onclick="changeFPS(this)" value="60"/>60 fps</label>
+<label><input type="radio" name="fps" onclick="changeFPS(this)" value="72"/>72 fps</label>
+<label><input type="radio" name="fps" onclick="changeFPS(this)" value="100"/>100 fps</label>
+<label><input type="radio" name="fps" onclick="changeFPS(this)" value="120"/>120 fps</label>
+<br>
+<button id="startButton" onclick="startRotating()">Start Y rotating</button> <button id="stopButton" onclick="stopRotating()" disabled="disabled">Stop Y rotating</button>
+</body>
+
+</html>

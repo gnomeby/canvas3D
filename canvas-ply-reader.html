@@ -168,11 +168,10 @@
     this.points = points;
 
     // Calculating normal
-    var v1 = new point3D(points[2].x - points[1].x, points[2].y - points[1].y, points[2].z - points[1].z);
-    var v2 = new point3D(points[0].x - points[1].x, points[0].y - points[1].y, points[0].z - points[1].z);
-
     if(normal === null)
     {
+      var v1 = new point3D(points[2].x - points[1].x, points[2].y - points[1].y, points[2].z - points[1].z);
+      var v2 = new point3D(points[0].x - points[1].x, points[0].y - points[1].y, points[0].z - points[1].z);
       var normal = new point3D(v1.y*v2.z-v2.y*v1.z, v1.z*v2.x-v2.z*v1.x, v1.x*v2.y-v2.x*v1.y);
       var normalLen = Math.sqrt(normal.x*normal.x + normal.y*normal.y + normal.z*normal.z);
       normal.x /= normalLen;
@@ -585,7 +584,7 @@
 <p>Features:
   <ul>
     <li>3D operations: rotating, moving object center</li>
-    <li>Direct illumination</li>
+    <li>Directional light</li>
     <li>Highlighting edges</li>
     <li>Painter's algorithm for sorting polygons</li>
     <li>Optimizations: 
