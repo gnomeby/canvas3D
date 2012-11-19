@@ -1,23 +1,26 @@
 PLY 3D model viewer based on HTML5 canvas
 =========================================
 
-3D HTML5 canvas realization based on 2D context.
+3D HTML5 canvas realization based on 2D and WebGL context.
 
 Examples:
-* [Cube](http://gnomeby.github.com/canvas3D/canvas-3d-cube.html) (see **Cube function** in source code)
-* [Suzanne monkey](http://gnomeby.github.com/canvas3D/canvas-ply-reader.html?file=monkey.ply)
-* [Utah teapot](http://gnomeby.github.com/canvas3D/canvas-ply-reader.html?file=teapot.ply)
-
+* 2D: [Cube](http://gnomeby.github.com/canvas3D/canvas-3d-cube.html) (see **Cube function** in source code)
+* 2D: [Suzanne monkey](http://gnomeby.github.com/canvas3D/canvas-ply-reader.html?file=monkey.ply)
+* 2D: [Utah teapot](http://gnomeby.github.com/canvas3D/canvas-ply-reader.html?file=teapot.ply)
+* WebGL: [Suzanne monkey](http://gnomeby.github.com/canvas3D/webgl-ply-reader.html?file=monkey.ply)
+* WebGL: [Utah teapot](http://gnomeby.github.com/canvas3D/webgl-ply-reader.html?file=teapot.ply)
 
 Features:
 * 3D operations: rotating, moving object center
-* Direct illumination
-* Highlighting edges
-* Painter's algorithm for sorting polygons
-* Optimizations: Skip processing of invisible polygons, skip processing of duplicated points, normals
+* Ambient light (only WebGL)
+* Directional light
+* Perspetive camera (only WebGL)
+* Highlighting edges (only 2D)
+* Painter's algorithm for sorting polygons (only 2D)
+* Optimizations (only 2D): Skip processing of invisible polygons, skip processing of duplicated points, normals
 
 
-#### Requirements:
+#### Requirements for 2D:
 * Internet Explorer 9
 * Chrome 4.0
 * Firefox 2.0
@@ -25,10 +28,16 @@ Features:
 * Opera 9.0, mobile Opera 10.0
 * Android Browser 2.1
 
-**Warning!** canvas-ply-reader.html won't work from disk because it uses AJAX to load **.ply** model file.
+#### Requirements for WebGL:
+* Chrome 9.0
+* Firefox 4.0
+* Safari 5.1 (needs to be enabled in Options)
+* Opera 12.0
 
-Performance
------------
+**Warning!** canvas-ply-reader.html and webgl-ply-reader.html won't work from disk because it uses AJAX to load **.ply** model file.
+
+Performance for 2D
+------------------
 
 Intel Core2 Duo 2.00GHz
 
