@@ -19,6 +19,7 @@ Features:
 * Painter's algorithm for sorting polygons (only 2D)
 * Optimizations (only 2D): Skip processing of invisible polygons, skip processing of duplicated points, normals
 
+![gnomeby avatar](http://niakhaichyk.org/andrey/img/lisa_small_32.png)
 
 #### Requirements for 2D:
 * Internet Explorer 9
